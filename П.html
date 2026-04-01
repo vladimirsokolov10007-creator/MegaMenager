@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Хатакон - Игра</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans, sans-serif); background: #f0f2f5;}
+
+#game { min-height: 600px; max-width: 900px; margin: 20px auto; background: #fff; border-radius: 12px; overflow: hidden; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+
+.screen { display: none; flex-direction: column; gap: 0; min-height: 600px; }
+.screen.active { display: flex; }
+
+/* HEADER */
+.hdr { background: #fafafa; border-bottom: 1px solid #eaeaea; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; }
+.logo { font-size: 20px; font-weight: 600; color: #333; letter-spacing: -0.5px; }
+.logo span { color: #1D9E75; }
+.stats-bar { display: flex; gap: 12px; align-items: center; }
+.stat-pill { font-size: 13px; padding: 4px 12px; border-radius: 20px; font-weight: 500; }
+.stat-money { background: #E1F5EE; color: #0F6E56; }
+.stat-rep { background: #E6F1FB; color: #185FA5; }
+.stat-level { background: #EEEDFE; color: #534AB7; }
+
+/* MAIN AREA */
+.main { display: flex; flex: 1; gap: 0; }
+
+/* BUILDING */
+.building-area { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 12px; background: #f8f9fb; }
+.building-title { font-size: 14px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+
+.room { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 16px; transition: all 0.2s; position: relative; }
+.room.done { border-color: #639922; background: #EAF3DE; }
+.room-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.room-name { font-size: 14px; font-weight: 600; color: #333; }
+.room-status { font-size: 12px; color: #777; font-weight: 500; }
+
+.workers-row { display: flex; gap: 8px; align-items: center; min-height: 42px; }
+.worker-slot { width: 42px; height: 42px; border-radius: 50%; border: 2px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #aaa; cursor: pointer; transition: all 0.15s; }
+.worker-slot.occupied { border-style: solid; border-color: transparent; }
+.worker-slot:hover { border-color: #1D9E75; color: #1D9E75; }
+.worker-avatar { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: grab; user-select: none; position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.worker-avatar.tired { opacity: 0.5; filter: grayscale(0.7); }
+.avatar-tooltip { display: none; position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); background: #333; border-radius: 6px; padding: 8px 12px; font-size: 12px; white-space: nowrap; z-index: 10; color: #fff; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+.worker-avatar:hover .avatar-tooltip { display: block; }
+
+.progress-bar-wrap { margin-top: 12px; background: #eee; border-radius: 6px; height: 6px; overflow: hidden; }
+.progress-bar { height: 6px; background: #1D9E75; border-radius: 6px; transition: width 0.3s linear; }
+
+.room-metrics { display: flex; gap: 8px; margin-top: 10px; font-size: 12px; color: #555; font-weight: 500;}
+.metric-tag { background: #f0f0f0; padding: 4px 8px; border-radius: 12px; }
+
+/* SIDEBAR */
+.sidebar { width: 260px; background: #fff; border-left: 1px solid #eaeaea; display: flex; flex-direction: column; }
+.sidebar-section { padding: 16px; border-bottom: 1px solid #eaeaea; flex: 1; overflow-y: auto;}
+.sidebar-title { font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+
+.worker-card { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: grab; margin-bottom: 6px; border: 1px solid #eee; background: #fafafa; transition: all 0.15s; user-select: none; }
+.worker-card:hover { border-color: #ccc; }
+.worker-card.disabled { opacity: 0.5; pointer-events: none; }
+.worker-card.fired { border-color: #E24B4A; background: #FCE8E8; opacity: 0.7;}
+.worker-info { flex: 1; }
+.worker-name { font-size: 13px; font-weight: 600; color: #333; }
+.worker-role { font-size: 11px; color: #666; margin-top: 2px;}
+.worker-stats { font-size: 11px; color: #888; margin-top: 4px; display: flex; justify-content: space-between;}
+
+.stress-indicators { display: flex; gap: 3px; margin-top: 4px; }
+.stress-dot { width: 8px; height: 8px; border-radius: 50%; background: #ddd; }
+.stress-dot.filled { background: #EF9F27; }
+.stress-dot.filled.danger { background: #E24B4A; }
+
+/* MEGA PANEL */
+.mega-panel { border-top: 1px solid #eaeaea; padding: 16px; display: flex; gap: 12px; align-items: flex-start; min-height: 120px; background: #fdfdfd;}
+.mega-avatar { width: 40px; height: 40px; border-radius: 50%; background: #534AB7; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; box-shadow: 0 2px 6px rgba(83,74,183,0.3);}
+.mega-bubble { flex: 1; background: #EEEDFE; border-radius: 12px; padding: 10px 14px; font-size: 13px; color: #333; line-height: 1.5; border: 1px solid #d4d1f9;}
+.mega-name { font-size: 11px; font-weight: 700; color: #534AB7; margin-bottom: 4px; text-transform: uppercase;}
+
+/* BOTTOM ACTIONS */
+.bottom-bar { background: #fff; border-top: 1px solid #eaeaea; padding: 12px 20px; display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+.btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid #ccc; background: #fff; color: #333; transition: all 0.15s; }
+.btn:hover { background: #f0f0f0; }
+.btn.primary { background: #1D9E75; color: white; border-color: #1D9E75; }
+.btn.primary:hover { background: #0F6E56; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* INTRO/SCORE SCREENS */
+.intro-content, .score-content { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 40px; text-align: center; gap: 20px; }
+.intro-title { font-size: 36px; font-weight: 700; color: #333; letter-spacing: -1px; }
+.intro-title span { color: #1D9E75; }
+.intro-sub { font-size: 15px; color: #666; max-width: 400px; line-height: 1.6; }
+.score-big { font-size: 56px; }
+.score-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 100%; max-width: 400px; }
+.score-card { background: #f8f9fb; border: 1px solid #eee; border-radius: 8px; padding: 16px; }
+.score-label { font-size: 12px; color: #777; font-weight: 500; margin-bottom: 4px;}
+.score-val { font-size: 20px; font-weight: 600; color: #333; }
+
+/* MODAL */
+.modal-overlay { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.5); z-index: 20; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+.modal-overlay.show { display: flex; }
+.modal { background: #fff; border-radius: 12px; padding: 24px; max-width: 420px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+.modal-title { font-size: 18px; font-weight: 600; margin-bottom: 12px; color: #333; }
+.modal-body { font-size: 14px; color: #555; line-height: 1.6; margin-bottom: 20px; max-height: 300px; overflow-y: auto;}
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;}
+
+.freelancer-tag { font-size: 10px; background: #FAEEDA; color: #854F0B; padding: 2px 6px; border-radius: 8px; margin-left: 6px;}
+</style>
+</head>
+<body>
+
+<div id="game">
+
+<div class="screen active" id="screen-intro">
+  <div class="intro-content">
+    <div style="font-size: 56px;">🏢</div>
+    <div class="intro-title">Хата<span>кон</span>!</div>
+    <div class="intro-sub">Станьте Мега-менеджером образовательных проектов. Распределяйте команду по задачам, следите за выгоранием и бюджетом.</div>
+    <button class="btn primary" onclick="startGame()" style="font-size:16px;padding:12px 32px;">Начать работу →</button>
+  </div>
+</div>
+
+<div class="screen" id="screen-game">
+  <div class="hdr">
+    <div class="logo">Хата<span>кон</span>!</div>
+    <div class="stats-bar">
+      <span class="stat-pill stat-money" id="hdr-money">💰 0к</span>
+      <span class="stat-pill stat-rep" id="hdr-rep">⭐ 0</span>
+      <span class="stat-pill stat-level" id="hdr-level">Ур. 1</span>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="building-area">
+      <div class="building-title" id="ui-level-title">Офис — Задание 1</div>
+
+      <div class="room" id="room-0" ondragover="allowDrop(event)" ondrop="drop(event, 0)">
+        <div class="room-header">
+          <span class="room-name">1. Методология и аналитика</span>
+          <span class="room-status" id="room-status-0">Ожидает...</span>
+        </div>
+        <div class="workers-row" id="workers-row-0"></div>
+        <div class="progress-bar-wrap"><div class="progress-bar" id="prog-0" style="width:0%"></div></div>
+        <div class="room-metrics">
+          <span class="metric-tag" id="metric-speed-0">⚡ Скорость: 0</span>
+          <span class="metric-tag" id="metric-quality-0">✨ Качество: 0</span>
+        </div>
+      </div>
+
+      <div class="room" id="room-1" ondragover="allowDrop(event)" ondrop="drop(event, 1)">
+        <div class="room-header">
+          <span class="room-name">2. Продакшн и контент</span>
+          <span class="room-status" id="room-status-1">Ожидает...</span>
+        </div>
+        <div class="workers-row" id="workers-row-1"></div>
+        <div class="progress-bar-wrap"><div class="progress-bar" id="prog-1" style="width:0%"></div></div>
+        <div class="room-metrics">
+          <span class="metric-tag" id="metric-speed-1">⚡ Скорость: 0</span>
+          <span class="metric-tag" id="metric-quality-1">✨ Качество: 0</span>
+        </div>
+      </div>
+
+      <div class="room" id="room-2" ondragover="allowDrop(event)" ondrop="drop(event, 2)">
+        <div class="room-header">
+          <span class="room-name">3. Тест-драйв и сопровождение</span>
+          <span class="room-status" id="room-status-2">Ожидает...</span>
+        </div>
+        <div class="workers-row" id="workers-row-2"></div>
+        <div class="progress-bar-wrap"><div class="progress-bar" id="prog-2" style="width:0%"></div></div>
+        <div class="room-metrics">
+          <span class="metric-tag" id="metric-speed-2">⚡ Скорость: 0</span>
+          <span class="metric-tag" id="metric-quality-2">✨ Качество: 0</span>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+          <div class="room" id="room-rest" style="display:none; flex: 1; border-style:dashed; padding: 10px;">
+            <div class="room-name" style="font-size: 12px;">🛋 Зона отдыха (Люди)</div>
+          </div>
+          <div class="room" id="room-energy" style="display:none; flex: 1; border-style:dashed; padding: 10px; background: #eef7fc; border-color: #90cbf0;">
+            <div class="room-name" style="font-size: 12px; color: #185FA5;">⚡ Энергоузел (Роботы)</div>
+          </div>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Сотрудники</div>
+        <div id="worker-list"></div>
+      </div>
+      <div class="mega-panel">
+        <div class="mega-avatar">🤖</div>
+        <div class="mega-bubble">
+          <div class="mega-name">МЕГА-ассистент</div>
+          <div id="mega-text">Распредели команду по комнатам!</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-bar">
+    <div style="font-size:13px;color:#666;" id="level-goal">Цель: Скорость ≥ 5</div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn" id="btn-reset" onclick="resetPlacements()">Сбросить</button>
+      <button class="btn primary" id="btn-run" onclick="runProject()">▶ Запустить проект</button>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="screen-result">
+  <div class="hdr">
+    <div class="logo">Хата<span>кон</span>!</div>
+    <div class="stats-bar">
+      <span class="stat-pill stat-money" id="res-money">💰 0к</span>
+      <span class="stat-pill stat-rep" id="res-rep">⭐ 0</span>
+    </div>
+  </div>
+  <div class="score-content">
+    <div id="result-emoji" class="score-big">🎉</div>
+    <div id="result-title" style="font-size:26px;font-weight:700;color:#333;">Результат</div>
+    <div id="result-subtitle" style="font-size:15px;color:#666;max-width:400px;line-height:1.6;"></div>
+    
+    <div class="score-grid">
+      <div class="score-card"><div class="score-label">Итоговая Скорость</div><div class="score-val" id="res-speed">0</div></div>
+      <div class="score-card"><div class="score-label">Итоговое Качество</div><div class="score-val" id="res-quality">0</div></div>
+      <div class="score-card"><div class="score-label">Вердикт</div><div class="score-val" id="res-grade" style="color:#1D9E75;">Успех</div></div>
+    </div>
+
+    <div id="mega-result-msg" style="background:#EEEDFE; border: 1px solid #d4d1f9; border-radius:12px; padding:16px; font-size:14px; color:#333; max-width:400px; text-align:left; line-height:1.6;"></div>
+    
+    <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top: 10px;" id="result-actions"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title"></div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+// --- CORE DATA & STATE ---
+const LEVEL_CONFIG = {
+  1: { title: "Онлайн-курс «Python»", reqSpeed: 5, reqQual: 0, rewardMoney: 100 },
+  2: { title: "Детский проект «ПДД»", reqSpeed: 0, reqQual: 4, rewardMoney: 150 },
+  3: { title: "Профпереподготовка", reqSpeed: 0, reqQual: 6, rewardMoney: 200 }
+};
+
+let STATE = {
+  money: 0, rep: 0, level: 1, 
+  hasRestRoom: false, hasEnergyRoom: false,
+  placements: [[],[],[]], // IDs per room
+  running: false,
+  freelancerCounter: 0
+};
+
+// Initial roster
+let WORKERS = [
+  { id:'curator', name:'Куратор', role:'Методист поддержки', emoji:'👩', color:'#1D9E75', bg:'#E1F5EE', idealRooms:[2], type:'human', worked:0, resting:0, isFired:false },
+  { id:'programmer', name:'Программист', role:'Разработчик', emoji:'💻', color:'#185FA5', bg:'#E6F1FB', idealRooms:[0,1], type:'human', worked:0, resting:0, isFired:false },
+  { id:'writer', name:'Сценарист', role:'Копирайтер', emoji:'✍️', color:'#993C1D', bg:'#FAECE7', idealRooms:[1], type:'human', worked:0, resting:0, isFired:false },
+  { id:'researcher', name:'Исследователь', role:'Аналитик', emoji:'🔬', color:'#3B6D11', bg:'#EAF3DE', idealRooms:[0], type:'human', worked:0, resting:0, isFired:false },
+  { id:'pedagog', name:'Педагог', role:'Проектировщик', emoji:'📚', color:'#534AB7', bg:'#EEEDFE', idealRooms:[0], type:'human', worked:0, resting:0, isFired:false }
+];
+
+// Add robot after Lvl 1
+function addRobot() {
+    WORKERS.push({ id:'robot_1', name:'Робот', role:'Универсал', emoji:'🤖', color:'#5F5E5A', bg:'#F1EFE8', idealRooms:[0,1,2], type:'robot', worked:0, resting:0, isFired:false });
+}
+
+function addFreelancer() {
+    STATE.freelancerCounter++;
+    WORKERS.push({ id:'free_'+STATE.freelancerCounter, name:'Фрилансер', role:'Наемник', emoji:'🕶️', color:'#854F0B', bg:'#FAEEDA', idealRooms:[0,1,2], type:'freelancer', worked:0, resting:0, isFired:false });
+}
+
+function getWorker(id) { return WORKERS.find(w=>w.id===id); }
+
+// --- UI UPDATES ---
+function updateHeader() {
+  document.getElementById('hdr-money').textContent = `💰 ${STATE.money}к`;
+  document.getElementById('hdr-rep').textContent = `⭐ ${STATE.rep}`;
+  document.getElementById('hdr-level').textContent = `Ур. ${STATE.level}`;
+  document.getElementById('res-money').textContent = `💰 ${STATE.money}к`;
+  document.getElementById('res-rep').textContent = `⭐ ${STATE.rep}`;
+  
+  const cfg = LEVEL_CONFIG[STATE.level];
+  document.getElementById('ui-level-title').textContent = `Офис — Задание ${STATE.level}: ${cfg.title}`;
+  document.getElementById('level-goal').textContent = `Цель: ${cfg.reqSpeed > 0 ? `Скорость ≥ ${cfg.reqSpeed}` : `Качество ≥ ${cfg.reqQual}`}`;
+
+  if(STATE.hasRestRoom) document.getElementById('room-rest').style.display = 'block';
+  if(STATE.hasEnergyRoom) document.getElementById('room-energy').style.display = 'block';
+}
+
+function setMega(text) {
+  document.getElementById('mega-text').innerHTML = text;
+}
+
+function renderWorkerList() {
+  const list = document.getElementById('worker-list');
+  list.innerHTML = '';
+  
+  WORKERS.forEach(w => {
+    if(w.isFired && w.type !== 'freelancer') {
+        // Show fired humans
+        const div = document.createElement('div');
+        div.className = 'worker-card fired';
+        div.innerHTML = `<div style="font-size:24px;">${w.emoji}</div><div class="worker-info"><div class="worker-name">${w.name} <span style="color:#E24B4A;font-size:10px;">(Уволен)</span></div></div>`;
+        list.appendChild(div);
+        return;
+    }
+    if(w.isFired && w.type === 'freelancer') return; // Hide left freelancers
+
+    const inRoom = STATE.placements.some(r => r.includes(w.id));
+    const disabled = w.resting > 0 || inRoom;
+    
+    const div = document.createElement('div');
+    div.className = `worker-card ${disabled ? 'disabled' : ''}`;
+    div.draggable = !disabled;
+    div.ondragstart = e => e.dataTransfer.setData('workerId', w.id);
+
+    let statusText = inRoom ? 'В комнате' : 'Готов';
+    if(w.resting > 0) statusText = `Отдыхает (${w.resting} пр.)`;
+
+    let maxStress = w.type === 'robot' ? 3 : (w.type === 'freelancer' ? 5 : 4);
+    let dots = '';
+    for(let i=1; i<=maxStress; i++) {
+        let isFilled = i <= w.worked;
+        let isDanger = isFilled && i === maxStress;
+        dots += `<div class="stress-dot ${isFilled ? 'filled' : ''} ${isDanger ? 'danger' : ''}"></div>`;
+    }
+
+    div.innerHTML = `
+      <div style="width:36px;height:36px;border-radius:50%;background:${w.bg};display:flex;align-items:center;justify-content:center;font-size:18px;">${w.emoji}</div>
+      <div class="worker-info">
+        <div class="worker-name">${w.name} ${w.type==='freelancer'?'<span class="freelancer-tag">Фриланс</span>':''}</div>
+        <div class="worker-role">${w.role}</div>
+        <div class="worker-stats">
+            <span>${statusText}</span>
+            <div class="stress-indicators" title="Усталость: ${w.worked}/${maxStress}">${dots}</div>
+        </div>
+      </div>`;
+    list.appendChild(div);
+  });
+}
+
+function renderRooms() {
+  for(let i=0; i<3; i++) {
+    const row = document.getElementById(`workers-row-${i}`);
+    row.innerHTML = '';
+    const placed = STATE.placements[i];
+    
+    for(let s=0; s<3; s++) {
+      const slot = document.createElement('div');
+      slot.className = `worker-slot ${placed[s] ? 'occupied' : ''}`;
+      
+      if(placed[s]) {
+        const w = getWorker(placed[s]);
+        const isIdeal = w.idealRooms.includes(i) || w.type === 'robot' || w.type === 'freelancer';
+        slot.innerHTML = `
+          <div class="worker-avatar" style="background:${w.bg}; border:2px solid ${isIdeal ? w.color : '#E24B4A'};">
+            ${w.emoji}
+            <div class="avatar-tooltip">${w.name}<br>${isIdeal?'✅ Эффективен':'⚠️ Штраф к скорости/качеству'}</div>
+          </div>`;
+        slot.onclick = () => removeWorker(i, s);
+      } else {
+        slot.textContent = '+';
+        slot.onclick = () => openModalForSlot(i);
+      }
+      row.appendChild(slot);
+    }
+    updateRoomMetrics(i);
+  }
+}
+
+function updateRoomMetrics(roomIdx) {
+    const metrics = calcRoom(roomIdx);
+    document.getElementById(`metric-speed-${roomIdx}`).textContent = `⚡ Скорость: ${metrics.s}`;
+    document.getElementById(`metric-quality-${roomIdx}`).textContent = `✨ Качество: ${metrics.q}`;
+}
+
+// --- LOGIC & CALCS ---
+function calcRoom(roomIdx) {
+    let s = 0, q = 0;
+    const placed = STATE.placements[roomIdx].map(getWorker);
+    
+    // Level 2/3 Room 3 specifics: Robot + Curator = 0 quality.
+    let hasRobot = placed.some(w => w.type === 'robot');
+    let hasCurator = placed.some(w => w.id === 'curator');
+    let qualityRuined = (STATE.level >= 2 && roomIdx === 2 && hasRobot && hasCurator);
+
+    placed.forEach(w => {
+        let wS = 1, wQ = 1;
+        if(w.type === 'human') {
+            if(!w.idealRooms.includes(roomIdx)) {
+                if(w.id === 'programmer') { wS = 0.5; wQ = 0.5; } // Programmer penalty
+                else { wS = 0; wQ = 0; } // Others cant work
+            }
+        } else if (w.type === 'freelancer') {
+            if(STATE.level === 3 && roomIdx === 1) wQ = 0.5; // Lvl 3 freelancer penalty
+        }
+        s += wS; q += wQ;
+    });
+
+    if(qualityRuined) q = 0;
+    return { s: Number(s.toFixed(1)), q: Number(q.toFixed(1)) };
+}
+
+// --- INTERACTION ---
+function allowDrop(ev) { ev.preventDefault(); }
+function drop(ev, roomIdx) {
+    ev.preventDefault();
+    const id = ev.dataTransfer.getData("workerId");
+    placeWorker(roomIdx, id);
+}
+
+function placeWorker(roomIdx, workerId) {
+  if(STATE.running) return;
+  if(STATE.placements[roomIdx].length >= 3) { setMega("Комната заполнена!"); return; }
+  if(STATE.placements.some(r => r.includes(workerId))) { setMega("Сотрудник уже занят!"); return; }
+  
+  STATE.placements[roomIdx].push(workerId);
+  renderRooms(); renderWorkerList();
+}
+
+function removeWorker(roomIdx, slotIdx) {
+  if(STATE.running) return;
+  STATE.placements[roomIdx].splice(slotIdx, 1);
+  renderRooms(); renderWorkerList();
+}
+
+function resetPlacements() {
+  STATE.placements = [[],[],[]];
+  renderRooms(); renderWorkerList();
+  setMega("Распределение сброшено.");
+}
+
+function openModalForSlot(roomIdx) {
+    const available = WORKERS.filter(w => !w.isFired && w.resting === 0 && !STATE.placements.some(r => r.includes(w.id)));
+    if(!available.length) { setMega("Нет свободных сотрудников!"); return; }
+    
+    let html = available.map(w => {
+        const isIdeal = w.idealRooms.includes(roomIdx) || w.type === 'robot' || w.type === 'freelancer';
+        return `<button class="btn" style="margin:4px; width:100%; text-align:left;" onclick="placeWorker(${roomIdx}, '${w.id}'); closeModal();">
+            ${w.emoji} ${w.name} (${w.role}) ${isIdeal ? '✅' : '⚠️'}
+        </button>`;
+    }).join('');
+    
+    showModal("Выберите сотрудника", html);
+}
+
+// --- GAME LOOP ---
+async function runProject() {
+  if(STATE.running) return;
+  
+  let totalPlaced = STATE.placements.reduce((acc, curr) => acc + curr.length, 0);
+  if(totalPlaced === 0) { setMega("Разместите сотрудников перед стартом!"); return; }
+
+  STATE.running = true;
+  document.getElementById('btn-run').disabled = true;
+  document.getElementById('btn-reset').disabled = true;
+
+  let totalS = 0, totalQ = 0;
+
+  for(let i=0; i<3; i++) {
+    const res = calcRoom(i);
+    totalS += res.s; totalQ += res.q;
+    
+    document.getElementById(`room-status-${i}`).textContent = 'В работе...';
+    await animateProgress(i);
+    document.getElementById(`room-${i}`).classList.add('done');
+    document.getElementById(`room-status-${i}`).textContent = '✅ Готово';
+  }
+
+  // Update fatigue
+  let firedMsgs = [];
+  WORKERS.forEach(w => {
+      // Decrease resting time if resting
+      if(w.resting > 0) { w.resting--; return; }
+
+      // Increase fatigue if placed anywhere in this project
+      if(STATE.placements.some(r => r.includes(w.id))) {
+          w.worked++;
+          if(w.type === 'human' && w.worked >= 4) {
+              if(STATE.hasRestRoom) { w.resting = 2; w.worked = 0; }
+              else { w.isFired = true; firedMsgs.push(`${w.name} увольняется от выгорания!`); }
+          }
+          else if(w.type === 'robot' && w.worked >= 3) {
+              if(STATE.hasEnergyRoom) { w.resting = 1; w.worked = 0; }
+              else { w.resting = 2; w.worked = 0; firedMsgs.push(`Роботу нужен ремонт (выбыл на 2 проекта). Купите Энергоузел!`); }
+          }
+          else if(w.type === 'freelancer' && w.worked >= 5) {
+              w.isFired = true; firedMsgs.push(`Контракт с фрилансером (${w.name}) окончен.`);
+          }
+      }
+  });
+
+  STATE.running = false;
+  setTimeout(() => showResults(totalS, totalQ, firedMsgs), 500);
+}
+
+function animateProgress(idx) {
+  return new Promise(resolve => {
+    let p = 0;
+    const bar = document.getElementById(`prog-${idx}`);
+    const int = setInterval(() => {
+      p += 5; bar.style.width = p + '%';
+      if(p >= 100) { clearInterval(int); resolve(); }
+    }, 30);
+  });
+}
+
+function showResults(s, q, firedMsgs) {
+    const cfg = LEVEL_CONFIG[STATE.level];
+    let isSuccess = false;
+    
+    if(cfg.reqSpeed > 0 && s >= cfg.reqSpeed) isSuccess = true;
+    if(cfg.reqQual > 0 && q >= cfg.reqQual) isSuccess = true;
+
+    // Specific fail case logging
+    if(STATE.level >= 2 && q === 0 && STATE.placements[2].some(w=>w.id==='curator') && STATE.placements[2].some(w=>w.type==='robot')) {
+        firedMsgs.unshift("❌ Куратор отказался работать с роботом в Тест-драйве (Качество = 0)!");
+        isSuccess = false;
+    }
+
+    document.getElementById('screen-game').classList.remove('active');
+    document.getElementById('screen-result').classList.add('active');
+
+    document.getElementById('res-speed').textContent = s;
+    document.getElementById('res-quality').textContent = q;
+
+    const vLabel = document.getElementById('res-grade');
+    if(isSuccess) {
+        vLabel.textContent = "Успех!"; vLabel.style.color = "#1D9E75";
+        document.getElementById('result-emoji').textContent = "🏆";
+        document.getElementById('result-title').textContent = "Проект сдан!";
+        
+        STATE.money += cfg.rewardMoney;
+        STATE.rep += 1;
+        
+        let megaTxt = `Отличная работа! +${cfg.rewardMoney}к бюджета. `;
+        if(firedMsgs.length) megaTxt += "<br>⚠️ Но есть потери: " + firedMsgs.join(', ');
+        
+        if(STATE.level === 1) {
+            megaTxt += "<br>Нам подарили Робота! Советую купить Зону отдыха.";
+            addRobot();
+        }
+        
+        document.getElementById('mega-result-msg').innerHTML = megaTxt;
+    } else {
+        vLabel.textContent = "Провал"; vLabel.style.color = "#E24B4A";
+        document.getElementById('result-emoji').textContent = "📉";
+        document.getElementById('result-title').textContent = "Требования не выполнены";
+        let errTxt = cfg.reqSpeed > 0 ? `Нужна скорость ≥ ${cfg.reqSpeed}. ` : `Нужно качество ≥ ${cfg.reqQual}. `;
+        if(firedMsgs.length) errTxt += "<br>" + firedMsgs.join('<br>');
+        document.getElementById('mega-result-msg').innerHTML = errTxt;
+    }
+
+    updateHeader();
+    buildShopActions(isSuccess);
+}
+
+function buildShopActions(isSuccess) {
+    const actions = document.getElementById('result-actions');
+    actions.innerHTML = '';
+
+    if(!isSuccess) {
+        actions.innerHTML = `<button class="btn primary" onclick="nextLevel(false)">🔁 Переделать проект</button>`;
+        return;
+    }
+
+    if(STATE.level === 1 && !STATE.hasRestRoom) {
+        actions.innerHTML += `<button class="btn" onclick="buyUpgrade('rest', 80)" ${STATE.money<80?'disabled':''}>🛋 Зона отдыха (80к)</button>`;
+    }
+    if(STATE.level >= 2 && !STATE.hasEnergyRoom) {
+        actions.innerHTML += `<button class="btn" onclick="buyUpgrade('energy', 120)" ${STATE.money<120?'disabled':''}>⚡ Энергоузел (120к)</button>`;
+    }
+    
+    actions.innerHTML += `<button class="btn" onclick="buyFreelancer()" ${STATE.money<20?'disabled':''}>🕶 Нанять Фрилансера (20к)</button>`;
+    
+    let nextTxt = STATE.level < 3 ? "Следующий уровень →" : "Играть дальше (Песочница) →";
+    actions.innerHTML += `<button class="btn primary" onclick="nextLevel(true)">${nextTxt}</button>`;
+}
+
+function buyUpgrade(type, cost) {
+    if(STATE.money >= cost) {
+        STATE.money -= cost;
+        if(type === 'rest') STATE.hasRestRoom = true;
+        if(type === 'energy') STATE.hasEnergyRoom = true;
+        updateHeader();
+        buildShopActions(true);
+        setMega("Улучшение куплено!");
+    }
+}
+
+function buyFreelancer() {
+    if(STATE.money >= 20) {
+        STATE.money -= 20;
+        addFreelancer();
+        updateHeader();
+        buildShopActions(true);
+    }
+}
+
+function nextLevel(advance) {
+    if(advance && STATE.level < 3) STATE.level++;
+    
+    STATE.placements = [[],[],[]];
+    for(let i=0; i<3; i++) {
+        document.getElementById(`prog-${i}`).style.width = '0%';
+        document.getElementById(`room-${i}`).classList.remove('done');
+        document.getElementById(`room-status-${i}`).textContent = 'Ожидает...';
+    }
+    
+    document.getElementById('btn-run').disabled = false;
+    document.getElementById('btn-reset').disabled = false;
+    
+    document.getElementById('screen-result').classList.remove('active');
+    document.getElementById('screen-game').classList.add('active');
+    
+    updateHeader();
+    renderRooms();
+    renderWorkerList();
+    
+    if(advance && STATE.level === 2) setMega("Уровень 2! Теперь важно КАЧЕСТВО. Внимание: Куратор не переносит Роботов!");
+    if(advance && STATE.level === 3) setMega("Уровень 3! Высший пилотаж. Качество должно быть ≥ 6.");
+}
+
+// --- MODAL & INIT ---
+function showModal(title, body) {
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-body').innerHTML = body;
+    document.getElementById('modal-actions').innerHTML = `<button class="btn" onclick="closeModal()">Закрыть</button>`;
+    document.getElementById('modal').classList.add('show');
+}
+function closeModal() { document.getElementById('modal').classList.remove('show'); }
+
+function startGame() {
+  document.getElementById('screen-intro').classList.remove('active');
+  document.getElementById('screen-game').classList.add('active');
+  updateHeader();
+  renderWorkerList();
+  renderRooms();
+}
+</script>
+</body>
+</html>
